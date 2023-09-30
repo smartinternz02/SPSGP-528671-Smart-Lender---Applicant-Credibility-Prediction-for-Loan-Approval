@@ -1,167 +1,102 @@
-# -*- coding: utf-8 -*-
-import warnings
-import json
+from . import json as json
+from .app import Flask as Flask
+from .app import Request as Request
+from .app import Response as Response
+from .blueprints import Blueprint as Blueprint
+from .config import Config as Config
+from .ctx import after_this_request as after_this_request
+from .ctx import copy_current_request_context as copy_current_request_context
+from .ctx import has_app_context as has_app_context
+from .ctx import has_request_context as has_request_context
+from .globals import current_app as current_app
+from .globals import g as g
+from .globals import request as request
+from .globals import session as session
+from .helpers import abort as abort
+from .helpers import flash as flash
+from .helpers import get_flashed_messages as get_flashed_messages
+from .helpers import get_template_attribute as get_template_attribute
+from .helpers import make_response as make_response
+from .helpers import redirect as redirect
+from .helpers import send_file as send_file
+from .helpers import send_from_directory as send_from_directory
+from .helpers import stream_with_context as stream_with_context
+from .helpers import url_for as url_for
+from .json import jsonify as jsonify
+from .signals import appcontext_popped as appcontext_popped
+from .signals import appcontext_pushed as appcontext_pushed
+from .signals import appcontext_tearing_down as appcontext_tearing_down
+from .signals import before_render_template as before_render_template
+from .signals import got_request_exception as got_request_exception
+from .signals import message_flashed as message_flashed
+from .signals import request_finished as request_finished
+from .signals import request_started as request_started
+from .signals import request_tearing_down as request_tearing_down
+from .signals import template_rendered as template_rendered
+from .templating import render_template as render_template
+from .templating import render_template_string as render_template_string
+from .templating import stream_template as stream_template
+from .templating import stream_template_string as stream_template_string
 
-from tarfile import TarFile
-from pkgutil import get_data
-from io import BytesIO
-
-from dateutil.tz import tzfile as _tzfile
-
-__all__ = ["get_zonefile_instance", "gettz", "gettz_db_metadata"]
-
-ZONEFILENAME = "dateutil-zoneinfo.tar.gz"
-METADATA_FN = 'METADATA'
-
-
-class tzfile(_tzfile):
-    def __reduce__(self):
-        return (gettz, (self._filename,))
-
-
-def getzoneinfofile_stream():
-    try:
-        return BytesIO(get_data(__name__, ZONEFILENAME))
-    except IOError as e:  # TODO  switch to FileNotFoundError?
-        warnings.warn("I/O error({0}): {1}".format(e.errno, e.strerror))
-        return None
-
-
-class ZoneInfoFile(object):
-    def __init__(self, zonefile_stream=None):
-        if zonefile_stream is not None:
-            with TarFile.open(fileobj=zonefile_stream) as tf:
-                self.zones = {zf.name: tzfile(tf.extractfile(zf), filename=zf.name)
-                              for zf in tf.getmembers()
-                              if zf.isfile() and zf.name != METADATA_FN}
-                # deal with links: They'll point to their parent object. Less
-                # waste of memory
-                links = {zl.name: self.zones[zl.linkname]
-                         for zl in tf.getmembers() if
-                         zl.islnk() or zl.issym()}
-                self.zones.update(links)
-                try:
-                    metadata_json = tf.extractfile(tf.getmember(METADATA_FN))
-                    metadata_str = metadata_json.read().decode('UTF-8')
-                    self.metadata = json.loads(metadata_str)
-                except KeyError:
-                    # no metadata in tar file
-                    self.metadata = None
-        else:
-            self.zones = {}
-            self.metadata = None
-
-    def get(self, name, default=None):
-        """
-        Wrapper for :func:`ZoneInfoFile.zones.get`. This is a convenience method
-        for retrieving zones from the zone dictionary.
-
-        :param name:
-            The name of the zone to retrieve. (Generally IANA zone names)
-
-        :param default:
-            The value to return in the event of a missing key.
-
-        .. versionadded:: 2.6.0
-
-        """
-        return self.zones.get(name, default)
+__version__ = "2.3.2"
 
 
-# The current API has gettz as a module function, although in fact it taps into
-# a stateful class. So as a workaround for now, without changing the API, we
-# will create a new "global" class instance the first time a user requests a
-# timezone. Ugly, but adheres to the api.
-#
-# TODO: Remove after deprecation period.
-_CLASS_ZONE_INSTANCE = []
+def __getattr__(name):
+    if name == "_app_ctx_stack":
+        import warnings
+        from .globals import __app_ctx_stack
 
+        warnings.warn(
+            "'_app_ctx_stack' is deprecated and will be removed in Flask 2.4.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return __app_ctx_stack
 
-def get_zonefile_instance(new_instance=False):
-    """
-    This is a convenience function which provides a :class:`ZoneInfoFile`
-    instance using the data provided by the ``dateutil`` package. By default, it
-    caches a single instance of the ZoneInfoFile object and returns that.
+    if name == "_request_ctx_stack":
+        import warnings
+        from .globals import __request_ctx_stack
 
-    :param new_instance:
-        If ``True``, a new instance of :class:`ZoneInfoFile` is instantiated and
-        used as the cached instance for the next call. Otherwise, new instances
-        are created only as necessary.
+        warnings.warn(
+            "'_request_ctx_stack' is deprecated and will be removed in Flask 2.4.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return __request_ctx_stack
 
-    :return:
-        Returns a :class:`ZoneInfoFile` object.
+    if name == "escape":
+        import warnings
+        from markupsafe import escape
 
-    .. versionadded:: 2.6
-    """
-    if new_instance:
-        zif = None
-    else:
-        zif = getattr(get_zonefile_instance, '_cached_instance', None)
+        warnings.warn(
+            "'flask.escape' is deprecated and will be removed in Flask 2.4. Import"
+            " 'markupsafe.escape' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return escape
 
-    if zif is None:
-        zif = ZoneInfoFile(getzoneinfofile_stream())
+    if name == "Markup":
+        import warnings
+        from markupsafe import Markup
 
-        get_zonefile_instance._cached_instance = zif
+        warnings.warn(
+            "'flask.Markup' is deprecated and will be removed in Flask 2.4. Import"
+            " 'markupsafe.Markup' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return Markup
 
-    return zif
+    if name == "signals_available":
+        import warnings
 
+        warnings.warn(
+            "'signals_available' is deprecated and will be removed in Flask 2.4."
+            " Signals are always available",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return True
 
-def gettz(name):
-    """
-    This retrieves a time zone from the local zoneinfo tarball that is packaged
-    with dateutil.
-
-    :param name:
-        An IANA-style time zone name, as found in the zoneinfo file.
-
-    :return:
-        Returns a :class:`dateutil.tz.tzfile` time zone object.
-
-    .. warning::
-        It is generally inadvisable to use this function, and it is only
-        provided for API compatibility with earlier versions. This is *not*
-        equivalent to ``dateutil.tz.gettz()``, which selects an appropriate
-        time zone based on the inputs, favoring system zoneinfo. This is ONLY
-        for accessing the dateutil-specific zoneinfo (which may be out of
-        date compared to the system zoneinfo).
-
-    .. deprecated:: 2.6
-        If you need to use a specific zoneinfofile over the system zoneinfo,
-        instantiate a :class:`dateutil.zoneinfo.ZoneInfoFile` object and call
-        :func:`dateutil.zoneinfo.ZoneInfoFile.get(name)` instead.
-
-        Use :func:`get_zonefile_instance` to retrieve an instance of the
-        dateutil-provided zoneinfo.
-    """
-    warnings.warn("zoneinfo.gettz() will be removed in future versions, "
-                  "to use the dateutil-provided zoneinfo files, instantiate a "
-                  "ZoneInfoFile object and use ZoneInfoFile.zones.get() "
-                  "instead. See the documentation for details.",
-                  DeprecationWarning)
-
-    if len(_CLASS_ZONE_INSTANCE) == 0:
-        _CLASS_ZONE_INSTANCE.append(ZoneInfoFile(getzoneinfofile_stream()))
-    return _CLASS_ZONE_INSTANCE[0].zones.get(name)
-
-
-def gettz_db_metadata():
-    """ Get the zonefile metadata
-
-    See `zonefile_metadata`_
-
-    :returns:
-        A dictionary with the database metadata
-
-    .. deprecated:: 2.6
-        See deprecation warning in :func:`zoneinfo.gettz`. To get metadata,
-        query the attribute ``zoneinfo.ZoneInfoFile.metadata``.
-    """
-    warnings.warn("zoneinfo.gettz_db_metadata() will be removed in future "
-                  "versions, to use the dateutil-provided zoneinfo files, "
-                  "ZoneInfoFile object and query the 'metadata' attribute "
-                  "instead. See the documentation for details.",
-                  DeprecationWarning)
-
-    if len(_CLASS_ZONE_INSTANCE) == 0:
-        _CLASS_ZONE_INSTANCE.append(ZoneInfoFile(getzoneinfofile_stream()))
-    return _CLASS_ZONE_INSTANCE[0].metadata
+    raise AttributeError(name)
